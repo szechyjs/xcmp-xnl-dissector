@@ -1,15 +1,53 @@
 local proto = Proto("xcmp", "Motorola XCMP")
 
 local opcodes_base = {
-  [0x000d] = "SUPERBUNDLEAPPLY",
+  [0x0001] = "SOFTPOT",
+  [0x0002] = "TRANSMITCFG",
+  [0x0003] = "RECEIVECFG",
+  [0x0004] = "TRANSMIT",
+  [0x0005] = "RECEIVE",
+  [0x0006] = "TXPWRLVL",
+  [0x0007] = "EMPHASIS",
+  [0x000a] = "RXFREQ",
+  [0x000b] = "TXFREQ",
+  [0x000c] = "TESTMODE",
+  [0x000d] = "RESET",
   [0x000e] = "RSTATUS",
   [0x000f] = "VERINFO",
   [0x0010] = "RMODEL",
   [0x0011] = "SERIAL",
+  [0x0012] = "UUID",
+  [0x0016] = "RXBERCTRL",
+  [0x0017] = "RXBERSYNC",
+  [0x0023] = "DSCREMDEV",
+  [0x0024] = "REMCONNECT",
+  [0x0025] = "REMDISCONNECT",
+  [0x002b] = "LANGPK",
   [0x002c] = "LANGPKINFO",
   [0x002e] = "SUPERBUNDLE",
+  [0x0037] = "CPATTR",
+  [0x003d] = "SECCONN",
+  [0x0100] = "READISHITEM",
+  [0x0101] = "WRITEISHITEM",
+  [0x0102] = "DELISHIDS",
+  [0x0103] = "DELISHTYPE",
+  [0x0104] = "READISHIDSET",
+  [0x0105] = "READISHTYPESET",
+  [0x0106] = "ISHPGMMODE",
+  [0x0107] = "ISHREORGCTRL",
+  [0x0108] = "ISHUNLOCKPRT",
   [0x0109] = "CLONEWR",
   [0x010a] = "CLONERD",
+  [0x010e] = "COMPREAD",
+  [0x010f] = "COMPSESS",
+  [0x0200] = "BOOTMODE",
+  [0x0201] = "MEM",
+  [0x0204] = "BOOTJMPEXEC",
+  [0x0206] = "BOOTWRITECMT",
+  [0x0207] = "REMDUP",
+  [0x0208] = "FPGAOP",
+  [0x0300] = "RKEY",
+  [0x0301] = "UNLOCKSEC",
   [0x0400] = "DEVINITSTS",
   [0x0401] = "DISPTXT",
   [0x0402] = "INDUPDRQ",
@@ -39,8 +77,17 @@ local opcodes_base = {
   [0x0428] = "DEVMGMT",
   [0x042e] = "ALARMCTRL",
   [0x042f] = "ROSCTRL",
+  [0x0432] = "DATETIME",
+  [0x0440] = "MEMSTRMREAD",
+  [0x0441] = "MEMSTRMWRITE",
+  [0x0443] = "NANDACCESS",
+  [0x0444] = "FTLACCESS",
+  [0x0445] = "FILEACCESS",
   [0x0447] = "RPTRCTRL",
   [0x0458] = "FD",
+  [0x0461] = "MODINFO",
+  [0x0467] = "CPPASSWDLCK",
+  [0x046c] = "UNKILL",
   [0x04a1] = "SWA_AUDIO",
 }
 
@@ -110,15 +157,103 @@ local devinitsts_attrs = {
   [20] = "GPS",
 }
 
+local rstatus_types = {
+  [0] = "Squelch",
+  [1] = "Synthesizer lock detect",
+  [2] = "RSSI",
+  [3] = "Battery value",
+  [4] = "Low battery",
+  [5] = "Power up status",
+  [6] = "Abacus tuning status",
+  [7] = "Model number",
+  [8] = "Serial number",
+  [9] = "ESN",
+  [10] = "IF input signal strength",
+  [11] = "Product serial number",
+  [12] = "Frequency offset",
+  [13] = "Signaling mode",
+  [14] = "Radio ID",
+  [15] = "Radio alias",
+  [16] = "Generic option board available",
+  [17] = "Bandit wireline board available",
+  [18] = "Alt image status of bandit controller FPGA",
+  [19] = "Alt image status of bandit wireline FPGA",
+  [20] = "Neptune feature status",
+  [21] = "Meter status of bandit FPGA",
+  [22] = "Select 5 radio ID",
+  [23] = "Privacy type",
+  [24] = "Bluetooth address",
+  [25] = "Sideband suppression",
+  [45] = "Radio update status",
+  [75] = "Physical serial number",
+  [77] = "Uptime", -- verify, not in code
+  [78] = "Default gateway network attachment"
+};
+
 local verinfo_types = {
-  [48] = "Firmware",
+  [0] = "Host software version",
+  [2] = "BBF bundle version",
+  [16] = "DSP software version",
+  [17] = "DSP compatibility",
+  [19] = "DTP compatibility",
+  [34] = "Mace flash version",
+  [36] = "Mace hardware version",
+  [37] = "Mace hardware type",
+  [48] = "Flash boot app version",
+  [50] = "Ramdownloader version",
+  [53] = "L3 bootloader version",
+  [64] = "Tune version",
+  [65] = "Security version",
+  [66] = "Codeplug version",
+  [80] = "PSDT version",
+  [81] = "Configuration version",
+  [82] = "Kernel version",
+  [109] = "Flash size",
+  [130] = "Option board name",
+  [132] = "Option board hardware type",
+  [133] = "Option board main app version",
+  [135] = "Option board flash image type",
+  [136] = "Option board flash image version",
+  [164] = "Consolette board HW type",
+  [165] = "Consolette board host version",
+  [176] = "FPGA controller alt version",
+  [177] = "FPGA controller factory version",
+  [178] = "FPGA controller active version",
+  [179] = "FPGA wireline alt version",
+  [180] = "FPGA wireline factory version",
+  [181] = "FPGA wireline active version",
 }
+
+local serial_ops = {
+  [0] = "Read",
+  [1] = "Write",
+};
+
+local model_ops = {
+  [0] = "Read",
+  [1] = "Write",
+};
+
+local cpattr_ops = {
+  [1] = "Read",
+  [2] = "Write",
+};
+
+local cpattrs = {
+  [0] = "None",
+  [1] = "Total allowable memory",
+  [2] = "Current memory used",
+  [3] = "Regional information",
+  [4] = "OEM manufacurer ID",
+  [7] = "Radio security information",
+  [9] = "Certificate supported ID",
+};
 
 local f_opcode = ProtoField.uint16("xcmp.opcode", "Opcode", base.HEX, opcodes)
 local f_address_type = ProtoField.uint8("xcmp.address.type", "Type", base.DEC, address_types)
 local f_address_mototrbo = ProtoField.bytes("xcmp.address.mototrbo", "MotoTRBO ID")
 local f_rstatus_result = ProtoField.uint8("xcmp.rstatus.result", "Result", base.DEC, results)
-local f_rstatus_condition = ProtoField.uint8("xcmp.rstatus.condition", "Condition", base.DEC)
+local f_rstatus_type = ProtoField.uint8("xcmp.rstatus.type", "Type", base.DEC, rstatus_types)
 local f_rstatus_status = ProtoField.bytes("xcmp.rstatus.status", "Status")
 local f_devinitsts_major = ProtoField.uint8("xcmp.devinitsts.major", "Major Version", base.DEC)
 local f_devinitsts_minor = ProtoField.uint8("xcmp.devinitsts.minor", "Minor Version", base.DEC)
@@ -143,19 +278,23 @@ local f_callctrl_function = ProtoField.uint8("xcmp.callctrl.function", "Function
 local f_callctrl_calltype = ProtoField.uint8("xcmp.callctrl.calltype", "Call Type", base.DEC, calltypes)
 local f_callctrl_address = ProtoField.bytes("xcmp.callctrl.address", "Address")
 local f_callctrl_group = ProtoField.bytes("xcmp.callctrl.group", "Group ID")
-local f_verinfo_type = ProtoField.uint8("xcmp.verinfo.type", "Version Type", base.DEC)
+local f_verinfo_type = ProtoField.uint8("xcmp.verinfo.type", "Version Type", base.DEC, verinfo_types)
 local f_verinfo_value = ProtoField.string("xcmp.verinfo.value", "Version")
-local f_rmodel_type = ProtoField.uint8("xcmp.verinfo.type", "Model Type", base.DEC)
-local f_rmodel_value = ProtoField.string("xcmp.model.value", "Model")
-local f_serial_type = ProtoField.uint8("xcmp.verinfo.type", "Serial Type", base.DEC)
-local f_serial_value = ProtoField.string("xcmp.model.value", "Serial")
+local f_rmodel_op = ProtoField.uint8("xcmp.rmodel.op", "Model Operation", base.DEC, model_ops)
+local f_rmodel_value = ProtoField.string("xcmp.rmodel.value", "Model")
+local f_serial_op = ProtoField.uint8("xcmp.serial.op", "Serial Number Operation", base.DEC, serial_ops)
+local f_serial_value = ProtoField.string("xcmp.serial.value", "Serial Number")
+local f_cpattr_op = ProtoField.uint8("xcmp.cpattr.op", "Codeplug Attribute Operation", base.DEC, cpattr_ops)
+local f_cpattr = ProtoField.uint8("xcmp.cpattr.attr", "Codeplug Attribute", base.DEC, cpattrs)
+local f_cpattr_len = ProtoField.uint8("xcmp.cpattr.op", "Codeplug Attribute Length", base.DEC)
+local f_cpattr_value = ProtoField.bytes("xcmp.cpattr.value", "Codeplug Attribute Value")
 
 proto.fields = {
   f_opcode,
   f_address_type,
   f_address_mototrbo,
   f_rstatus_result,
-  f_rstatus_condition,
+  f_rstatus_type,
   f_rstatus_status,
   f_devinitsts_major,
   f_devinitsts_minor,
@@ -182,10 +321,14 @@ proto.fields = {
   f_callctrl_group,
   f_verinfo_type,
   f_verinfo_value,
-  f_rmodel_type,
+  f_rmodel_op,
   f_rmodel_value,
-  f_serial_type,
+  f_serial_op,
   f_serial_value,
+  f_cpattr_op,
+  f_cpattr_value,
+  f_cpattr_len,
+  f_cpattr,
 }
 
 -- dofile("xnl.luainc") -- uncomment to fix dependency order
@@ -219,15 +362,15 @@ function proto.dissector(buf, pkt, root)
   local desc = (opcodes[opcode] or opcode) .. " Transaction=" .. xnl_transaction().value
 
   if opcode == 0x000e then
-    tree:add(f_rstatus_condition, buf(2, 1))
-    desc = desc .. " Condition=" .. buf(2, 1):uint()
+    tree:add(f_rstatus_type, buf(2, 1))
+    desc = desc .. " Type=" .. buf(2, 1):uint()
   elseif opcode == 0x800e then
     local rstatus_result = buf(2, 1):uint()
     tree:add(f_rstatus_result, buf(2, 1))
     if rstatus_result == 0 then
-      tree:add(f_rstatus_condition, buf(3, 1))
+      tree:add(f_rstatus_type, buf(3, 1))
       tree:add(f_rstatus_status, buf(4, buf:len() - 4))
-      desc = desc .. " Condition=" .. buf(3, 1):uint()
+      desc = desc .. " Type=" .. buf(3, 1):uint()
     end
   elseif opcode == 0x000f then
     tree:add(f_verinfo_type, buf(2, 1))
@@ -235,15 +378,27 @@ function proto.dissector(buf, pkt, root)
   elseif opcode == 0x800f then
     tree:add(f_verinfo_value, buf(3, buf:len() - 3))
   elseif opcode == 0x0010 then
-    tree:add(f_rmodel_type, buf(2, 1))
-    desc = desc .. " Type=" .. buf(2, 1):uint()
+    tree:add(f_rmodel_op, buf(2, 1))
+    desc = desc .. " Op=" .. buf(2, 1):uint()
   elseif opcode == 0x8010 then
     tree:add(f_rmodel_value, buf(3, buf:len() - 3))
   elseif opcode == 0x0011 then
-    tree:add(f_serial_type, buf(2, 1))
-    desc = desc .. " Type=" .. buf(2, 1):uint()
+    tree:add(f_serial_op, buf(2, 1))
+    desc = desc .. " Op=" .. buf(2, 1):uint()
   elseif opcode == 0x8011 then
     tree:add(f_serial_value, buf(3, buf:len() - 3))
+  elseif opcode == 0x0037 then
+    tree:add(f_cpattr_op, buf(2, 1))
+    tree:add(f_cpattr, buf(3, 1))
+    tree:add(f_cpattr_len, buf(4, 1))
+    desc = desc .. " Op=" .. buf(2, 1):uint() .. " Attr=" .. buf(3, 1):uint()
+  elseif opcode == 0x8037 then
+    tree:add(f_cpattr_op, buf(3, 1))
+    tree:add(f_cpattr, buf(4, 1))
+    local attr_len = buf(5, 1):uint()
+    tree:add(f_cpattr_len, attr_len)
+    tree:add(f_cpattr_value, buf(6, attr_len))
+    desc = desc .. " Op=" .. buf(3, 1):uint() .. " Attr=" .. buf(4, 1):uint()
   elseif opcode == 0xb400 then
     tree:add(f_devinitsts_major, buf(2, 1))
     tree:add(f_devinitsts_minor, buf(3, 1))
