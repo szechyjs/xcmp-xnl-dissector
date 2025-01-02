@@ -3,6 +3,7 @@ local proto = Proto("xnl", "Motorola XNL")
 local port = 8002
 
 local opcodes = {
+  [1] = "MASTER_PRESENT_BRDCAST",
   [2] = "MASTER_STATUS_BRDCST",
   [3] = "DEV_MASTER_QUERY",
   [4] = "DEV_AUTH_KEY_REQUEST",
@@ -11,6 +12,7 @@ local opcodes = {
   [7] = "DEV_CONN_REPLY",
   [8] = "DEV_SYSMAP_REQUEST",
   [9] = "DEV_SYSMAP_BRDCST",
+  [10] = "DEV_RESET_MSG",
   [11] = "DATA_MSG",
   [12] = "DATA_MSG_ACK",
 }

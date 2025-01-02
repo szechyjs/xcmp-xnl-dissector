@@ -4,6 +4,8 @@ local opcodes_base = {
   [0x000d] = "SUPERBUNDLEAPPLY",
   [0x000e] = "RSTATUS",
   [0x000f] = "VERINFO",
+  [0x0010] = "RMODEL",
+  [0x0011] = "SERIAL",
   [0x002c] = "LANGPKINFO",
   [0x002e] = "SUPERBUNDLE",
   [0x0109] = "CLONEWR",
@@ -108,6 +110,10 @@ local devinitsts_attrs = {
   [20] = "GPS",
 }
 
+local verinfo_types = {
+  [48] = "Firmware",
+}
+
 local f_opcode = ProtoField.uint16("xcmp.opcode", "Opcode", base.HEX, opcodes)
 local f_address_type = ProtoField.uint8("xcmp.address.type", "Type", base.DEC, address_types)
 local f_address_mototrbo = ProtoField.bytes("xcmp.address.mototrbo", "MotoTRBO ID")
@@ -137,6 +143,12 @@ local f_callctrl_function = ProtoField.uint8("xcmp.callctrl.function", "Function
 local f_callctrl_calltype = ProtoField.uint8("xcmp.callctrl.calltype", "Call Type", base.DEC, calltypes)
 local f_callctrl_address = ProtoField.bytes("xcmp.callctrl.address", "Address")
 local f_callctrl_group = ProtoField.bytes("xcmp.callctrl.group", "Group ID")
+local f_verinfo_type = ProtoField.uint8("xcmp.verinfo.type", "Version Type", base.DEC)
+local f_verinfo_value = ProtoField.string("xcmp.verinfo.value", "Version")
+local f_rmodel_type = ProtoField.uint8("xcmp.verinfo.type", "Model Type", base.DEC)
+local f_rmodel_value = ProtoField.string("xcmp.model.value", "Model")
+local f_serial_type = ProtoField.uint8("xcmp.verinfo.type", "Serial Type", base.DEC)
+local f_serial_value = ProtoField.string("xcmp.model.value", "Serial")
 
 proto.fields = {
   f_opcode,
@@ -168,6 +180,12 @@ proto.fields = {
   f_callctrl_calltype,
   f_callctrl_address,
   f_callctrl_group,
+  f_verinfo_type,
+  f_verinfo_value,
+  f_rmodel_type,
+  f_rmodel_value,
+  f_serial_type,
+  f_serial_value,
 }
 
 -- dofile("xnl.luainc") -- uncomment to fix dependency order
@@ -211,6 +229,21 @@ function proto.dissector(buf, pkt, root)
       tree:add(f_rstatus_status, buf(4, buf:len() - 4))
       desc = desc .. " Condition=" .. buf(3, 1):uint()
     end
+  elseif opcode == 0x000f then
+    tree:add(f_verinfo_type, buf(2, 1))
+    desc = desc .. " Type=" .. buf(2, 1):uint()
+  elseif opcode == 0x800f then
+    tree:add(f_verinfo_value, buf(3, buf:len() - 3))
+  elseif opcode == 0x0010 then
+    tree:add(f_rmodel_type, buf(2, 1))
+    desc = desc .. " Type=" .. buf(2, 1):uint()
+  elseif opcode == 0x8010 then
+    tree:add(f_rmodel_value, buf(3, buf:len() - 3))
+  elseif opcode == 0x0011 then
+    tree:add(f_serial_type, buf(2, 1))
+    desc = desc .. " Type=" .. buf(2, 1):uint()
+  elseif opcode == 0x8011 then
+    tree:add(f_serial_value, buf(3, buf:len() - 3))
   elseif opcode == 0xb400 then
     tree:add(f_devinitsts_major, buf(2, 1))
     tree:add(f_devinitsts_minor, buf(3, 1))
