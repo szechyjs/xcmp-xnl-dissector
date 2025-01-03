@@ -264,6 +264,19 @@ local passwd_lock_fns = {
   [4] = "Verify pair",
 };
 
+local passwd_policies = {
+  [255] = "NA",
+  [0] = "None",
+  [1] = "Basic",
+  [2] = "Enhanced",
+};
+
+local func_ops = {
+  [0] = "Read cert ID",
+  [1] = "Set IP and port",
+  [2] = "Read IP and port",
+};
+
 local f_opcode = ProtoField.uint16("xcmp.opcode", "Opcode", base.HEX, opcodes)
 local f_result = ProtoField.uint8("xcmp.result", "Result", base.DEC, results)
 local f_address_type = ProtoField.uint8("xcmp.address.type", "Type", base.DEC, address_types)
@@ -323,8 +336,15 @@ local f_langpk_avail = ProtoField.uint32("xcmp.langpk.avail", "Language Pack Ava
 local f_langpk_cap = ProtoField.uint8("xcmp.langpk.cap", "Language Pack Capacity", base.DEC)
 local f_langpk_name = ProtoField.string("xcmp.langpk.name", "Language Pack Name")
 local f_pwdlck_fn = ProtoField.uint8("xcmp.pwdlck.fn", "Password Lock Function", base.DEC, passwd_lock_fns)
-local f_pwdlck_pol = ProtoField.uint8("xcmp.pwdlck.pol", "Password Lock Policy", base.DEC)
+local f_pwdlck_pol = ProtoField.uint8("xcmp.pwdlck.pol", "Password Lock Policy", base.DEC, passwd_policies)
 local f_pwdlck_alg = ProtoField.uint32("xcmp.pwdlck.alg", "Password Lock Algorithm", base.DEC)
+local f_radio_key = ProtoField.bytes("xcmp.radio.key", "Radio Key")
+local f_func_op = ProtoField.uint8("xcmp.func.op", "Function Operation", base.DEC, func_ops)
+local f_sb_msg_cnt = ProtoField.uint8("xcmp.sb.msg_cnt", "Message Count", base.DEC)
+local f_sb_cont_fail = ProtoField.uint8("xcmp.sb.cont_fail", "Continue on Fail", base.DEC)
+local f_sb_msg = ProtoField.bytes("xcmp.sb.msg", "Message")
+local f_sb_msg_len = ProtoField.uint16("xcmp.sb.msg_len", "Length", base.DEC)
+local f_sb_msg_data = ProtoField.bytes("xcmp.sb.msg_data", "Data")
 
 proto.fields = {
   f_opcode,
@@ -388,6 +408,13 @@ proto.fields = {
   f_pwdlck_fn,
   f_pwdlck_pol,
   f_pwdlck_alg,
+  f_radio_key,
+  f_func_op,
+  f_sb_msg_cnt,
+  f_sb_cont_fail,
+  f_sb_msg,
+  f_sb_msg_len,
+  f_sb_msg_data,
 }
 
 -- dofile("xnl.luainc") -- uncomment to fix dependency order
@@ -439,7 +466,9 @@ function proto.dissector(buf, pkt, root)
     tree:add(f_verinfo_type, buf(2, 1))
     desc = desc .. " Type=" .. buf(2, 1):uint()
   elseif opcode == 0x800f then
-    tree:add(f_verinfo_value, buf(3, buf:len() - 3))
+    if result == 0 then
+      tree:add(f_verinfo_value, buf(3, buf:len() - 3))
+    end
   elseif opcode == 0x0010 then
     tree:add(f_rmodel_op, buf(2, 1))
     desc = desc .. " Op=" .. buf(2, 1):uint()
@@ -447,6 +476,9 @@ function proto.dissector(buf, pkt, root)
     tree:add(f_rmodel_value, buf(3, buf:len() - 3))
   elseif opcode == 0x0011 then
     tree:add(f_serial_op, buf(2, 1))
+    if buf(2, 1):uint() == 1 then
+      tree:add(f_serial_value, buf(3, buf:len() - 3))
+    end
     desc = desc .. " Op=" .. buf(2, 1):uint()
   elseif opcode == 0x8011 then
     tree:add(f_serial_value, buf(3, buf:len() - 3))
@@ -482,6 +514,27 @@ function proto.dissector(buf, pkt, root)
       offset = offset + nameLen
       pack:add(f_langpk_name, getName, name)
     end
+  elseif opcode == 0x002e then
+    tree:add(f_sb_msg_cnt, buf(2, 1))
+    tree:add(f_sb_cont_fail, buf(3, 1))
+    local index = 4
+    for i = 0, buf(2, 1):uint() - 1 do
+      local len = buf(index, 2):uint()
+      local msg = tree:add(f_sb_msg, buf(index, len))
+      msg:add(f_sb_msg_len, buf(index, 2))
+      msg:add(f_sb_msg_data, buf(index + 2, len))
+      index = index + 2 + len
+    end
+  elseif opcode == 0x802e then
+    tree:add(f_sb_msg_cnt, buf(3, 1))
+    local index = 4
+    for i = 0, buf(3, 1):uint() - 1 do
+      local len = buf(index, 2):uint()
+      local msg = tree:add(f_sb_msg, buf(index, len))
+      msg:add(f_sb_msg_len, buf(index, 2))
+      msg:add(f_sb_msg_data, buf(index + 2, len))
+      index = index + 2 + len
+    end
   elseif opcode == 0x0037 then
     tree:add(f_cpattr_op, buf(2, 1))
     tree:add(f_cpattr, buf(3, 1))
@@ -494,6 +547,8 @@ function proto.dissector(buf, pkt, root)
     tree:add(f_cpattr_len, attr_len)
     tree:add(f_cpattr_value, buf(6, attr_len:uint()))
     desc = desc .. " Op=" .. buf(3, 1):uint() .. " Attr=" .. buf(4, 1):uint()
+  elseif opcode == 0x003d then
+    tree:add(f_func_op, buf(2, 1))
   elseif opcode == 0x0100 then
     local lp = buf(2, 1)
     local type = buf(3, 2)
@@ -537,6 +592,12 @@ function proto.dissector(buf, pkt, root)
     tree:add(f_readish_tot_ids, buf(10, 2))
     tree:add(f_readish_data, buf(12, num_ids:uint() * 2)) -- TODO: make array of uint16 ids
     desc = desc .. " LP=" .. lp:uint() .. " Type=" .. type:uint() .. " IDs=" .. num_ids:uint()
+  elseif opcode == 0x108 then
+    tree:add(f_readish_lp, buf(2, 1))
+  elseif opcode == 0x8300 then
+    tree:add(f_radio_key, buf(3, 32))
+  elseif opcode == 0x0301 then
+    tree:add(f_radio_key, buf(2, 32))
   elseif opcode == 0xb400 then
     tree:add(f_devinitsts_major, buf(2, 1))
     tree:add(f_devinitsts_minor, buf(3, 1))
