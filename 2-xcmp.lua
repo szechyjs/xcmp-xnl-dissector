@@ -157,7 +157,7 @@ local devinitsts_attrs = {
   [20] = "GPS",
 }
 
-local rstatus_types = {
+local rstatus_conds = {
   [0] = "Squelch",
   [1] = "Synthesizer lock detect",
   [2] = "RSSI",
@@ -256,11 +256,19 @@ local langpk_ops = {
   [3] = "ALL TTS",
 };
 
+local passwd_lock_fns = {
+  [0] = "Request status",
+  [1] = "Verify password",
+  [2] = "Pair device",
+  [3] = "Unpair device",
+  [4] = "Verify pair",
+};
+
 local f_opcode = ProtoField.uint16("xcmp.opcode", "Opcode", base.HEX, opcodes)
 local f_result = ProtoField.uint8("xcmp.result", "Result", base.DEC, results)
 local f_address_type = ProtoField.uint8("xcmp.address.type", "Type", base.DEC, address_types)
 local f_address_mototrbo = ProtoField.bytes("xcmp.address.mototrbo", "MotoTRBO ID")
-local f_rstatus_type = ProtoField.uint8("xcmp.rstatus.type", "Type", base.DEC, rstatus_types)
+local f_rstatus_cond = ProtoField.uint8("xcmp.rstatus.cond", "Condition", base.DEC, rstatus_conds)
 local f_rstatus_status = ProtoField.bytes("xcmp.rstatus.status", "Status")
 local f_devinitsts_major = ProtoField.uint8("xcmp.devinitsts.major", "Major Version", base.DEC)
 local f_devinitsts_minor = ProtoField.uint8("xcmp.devinitsts.minor", "Minor Version", base.DEC)
@@ -314,13 +322,16 @@ local f_langpk_siz = ProtoField.uint32("xcmp.langpk.size", "Language Pack Size",
 local f_langpk_avail = ProtoField.uint32("xcmp.langpk.avail", "Language Pack Available Space", base.DEC)
 local f_langpk_cap = ProtoField.uint8("xcmp.langpk.cap", "Language Pack Capacity", base.DEC)
 local f_langpk_name = ProtoField.string("xcmp.langpk.name", "Language Pack Name")
+local f_pwdlck_fn = ProtoField.uint8("xcmp.pwdlck.fn", "Password Lock Function", base.DEC, passwd_lock_fns)
+local f_pwdlck_pol = ProtoField.uint8("xcmp.pwdlck.pol", "Password Lock Policy", base.DEC)
+local f_pwdlck_alg = ProtoField.uint32("xcmp.pwdlck.alg", "Password Lock Algorithm", base.DEC)
 
 proto.fields = {
   f_opcode,
   f_address_type,
   f_address_mototrbo,
   f_result,
-  f_rstatus_type,
+  f_rstatus_cond,
   f_rstatus_status,
   f_devinitsts_major,
   f_devinitsts_minor,
@@ -374,6 +385,9 @@ proto.fields = {
   f_langpk_name,
   f_langpk_avail,
   f_langpk_cap,
+  f_pwdlck_fn,
+  f_pwdlck_pol,
+  f_pwdlck_alg,
 }
 
 -- dofile("xnl.luainc") -- uncomment to fix dependency order
@@ -408,18 +422,18 @@ function proto.dissector(buf, pkt, root)
 
   local result = nil
   if (opcode >> 12) == 8 then
-    result = buf(2, 1)
-    tree:add(f_result, result)
+    result = buf(2, 1):uint()
+    tree:add(f_result, buf(2, 1))
   end
 
   if opcode == 0x000e then
-    tree:add(f_rstatus_type, buf(2, 1))
-    desc = desc .. " Type=" .. buf(2, 1):uint()
+    tree:add(f_rstatus_cond, buf(2, 1))
+    desc = desc .. " Cond=" .. buf(2, 1):uint()
   elseif opcode == 0x800e then
     if result == 0 then
-      tree:add(f_rstatus_type, buf(3, 1))
+      tree:add(f_rstatus_cond, buf(3, 1))
       tree:add(f_rstatus_status, buf(4, buf:len() - 4))
-      desc = desc .. " Type=" .. buf(3, 1):uint()
+      desc = desc .. " Cond=" .. buf(3, 1):uint()
     end
   elseif opcode == 0x000f then
     tree:add(f_verinfo_type, buf(2, 1))
@@ -564,6 +578,20 @@ function proto.dissector(buf, pkt, root)
     if buf:len() > 0 then
       tree:add(f_callctrl_group, buf)
     end
+  elseif opcode == 0x0467 then
+    tree:add(f_pwdlck_fn, buf(2, 1))
+    desc = desc .. " Fn=" .. buf(2, 1):uint()
+  elseif opcode == 0x8467 then
+    local fn = buf(2, 1)
+    tree:add(f_pwdlck_fn, fn)
+    if fn:uint() == 0 then
+      tree:add(f_pwdlck_pol, buf(3, 1))
+      tree:add(f_pwdlck_alg, buf(4, 4))
+    elseif fn:uint() == 1 then
+    elseif fn:uint() == 2 then
+    elseif fn:uint() == 3 then
+    end
+    desc = desc .. " Fn=" .. buf(2, 1):uint()
   end
 
   pkt.cols.protocol:set("XCMP")
