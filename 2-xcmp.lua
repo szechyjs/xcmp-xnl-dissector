@@ -249,10 +249,17 @@ local cpattrs = {
   [9] = "Certificate supported ID",
 };
 
+local langpk_ops = {
+  [0] = "Single",
+  [1] = "All",
+  [2] = "Default",
+  [3] = "ALL TTS",
+};
+
 local f_opcode = ProtoField.uint16("xcmp.opcode", "Opcode", base.HEX, opcodes)
+local f_result = ProtoField.uint8("xcmp.result", "Result", base.DEC, results)
 local f_address_type = ProtoField.uint8("xcmp.address.type", "Type", base.DEC, address_types)
 local f_address_mototrbo = ProtoField.bytes("xcmp.address.mototrbo", "MotoTRBO ID")
-local f_rstatus_result = ProtoField.uint8("xcmp.rstatus.result", "Result", base.DEC, results)
 local f_rstatus_type = ProtoField.uint8("xcmp.rstatus.type", "Type", base.DEC, rstatus_types)
 local f_rstatus_status = ProtoField.bytes("xcmp.rstatus.status", "Status")
 local f_devinitsts_major = ProtoField.uint8("xcmp.devinitsts.major", "Major Version", base.DEC)
@@ -279,21 +286,40 @@ local f_callctrl_calltype = ProtoField.uint8("xcmp.callctrl.calltype", "Call Typ
 local f_callctrl_address = ProtoField.bytes("xcmp.callctrl.address", "Address")
 local f_callctrl_group = ProtoField.bytes("xcmp.callctrl.group", "Group ID")
 local f_verinfo_type = ProtoField.uint8("xcmp.verinfo.type", "Version Type", base.DEC, verinfo_types)
-local f_verinfo_value = ProtoField.string("xcmp.verinfo.value", "Version")
+local f_verinfo_value = ProtoField.stringz("xcmp.verinfo.value", "Version")
 local f_rmodel_op = ProtoField.uint8("xcmp.rmodel.op", "Model Operation", base.DEC, model_ops)
-local f_rmodel_value = ProtoField.string("xcmp.rmodel.value", "Model")
+local f_rmodel_value = ProtoField.stringz("xcmp.rmodel.value", "Model")
 local f_serial_op = ProtoField.uint8("xcmp.serial.op", "Serial Number Operation", base.DEC, serial_ops)
-local f_serial_value = ProtoField.string("xcmp.serial.value", "Serial Number")
+local f_serial_value = ProtoField.stringz("xcmp.serial.value", "Serial Number")
 local f_cpattr_op = ProtoField.uint8("xcmp.cpattr.op", "Codeplug Attribute Operation", base.DEC, cpattr_ops)
 local f_cpattr = ProtoField.uint8("xcmp.cpattr.attr", "Codeplug Attribute", base.DEC, cpattrs)
 local f_cpattr_len = ProtoField.uint8("xcmp.cpattr.op", "Codeplug Attribute Length", base.DEC)
 local f_cpattr_value = ProtoField.bytes("xcmp.cpattr.value", "Codeplug Attribute Value")
+local f_readish_lp = ProtoField.uint8("xcmp.readish.lp", "ISH Logical Partition", base.DEC)
+local f_readish_type = ProtoField.uint16("xcmp.readish.type", "ISH Type", base.DEC)
+local f_readish_id = ProtoField.uint16("xcmp.readish.id", "ISH ID", base.DEC)
+local f_readish_len = ProtoField.uint16("xcmp.readish.len", "ISH Number of Bytes", base.DEC)
+local f_readish_offset = ProtoField.uint16("xcmp.readish.offset", "ISH Offset", base.DEC)
+local f_readish_itmsz = ProtoField.uint16("xcmp.readish.itmsz", "ISH Item Size", base.DEC)
+local f_readish_ids = ProtoField.uint16("xcmp.readish.ids", "ISH Number of IDs", base.DEC)
+local f_readish_tot_ids = ProtoField.uint16("xcmp.readish.totids", "ISH Total ID Count", base.DEC)
+local f_readish_data = ProtoField.bytes("xcmp.readish.data", "ISH Item Data")
+local f_uuid = ProtoField.bytes("xcmp.uuid", "UUID")
+local f_langpk = ProtoField.bytes("xcmp.langpk", "Language Pack")
+local f_langpk_op = ProtoField.uint8("xcmp.langpk.op", "Language Pack Operation", base.DEC, langpk_ops)
+local f_langpk_id = ProtoField.string("xcmp.langpk.id", "Language Pack ID")
+local f_langpk_maj = ProtoField.uint32("xcmp.langpk.major", "Language Pack Major Version", base.DEC)
+local f_langpk_min = ProtoField.uint32("xcmp.langpk.minor", "Language Pack Minor Version", base.DEC)
+local f_langpk_siz = ProtoField.uint32("xcmp.langpk.size", "Language Pack Size", base.DEC)
+local f_langpk_avail = ProtoField.uint32("xcmp.langpk.avail", "Language Pack Available Space", base.DEC)
+local f_langpk_cap = ProtoField.uint8("xcmp.langpk.cap", "Language Pack Capacity", base.DEC)
+local f_langpk_name = ProtoField.string("xcmp.langpk.name", "Language Pack Name")
 
 proto.fields = {
   f_opcode,
   f_address_type,
   f_address_mototrbo,
-  f_rstatus_result,
+  f_result,
   f_rstatus_type,
   f_rstatus_status,
   f_devinitsts_major,
@@ -329,6 +355,25 @@ proto.fields = {
   f_cpattr_value,
   f_cpattr_len,
   f_cpattr,
+  f_readish_lp,
+  f_readish_type,
+  f_readish_id,
+  f_readish_len,
+  f_readish_offset,
+  f_readish_itmsz,
+  f_readish_data,
+  f_readish_ids,
+  f_readish_tot_ids,
+  f_uuid,
+  f_langpk,
+  f_langpk_op,
+  f_langpk_id,
+  f_langpk_maj,
+  f_langpk_min,
+  f_langpk_siz,
+  f_langpk_name,
+  f_langpk_avail,
+  f_langpk_cap,
 }
 
 -- dofile("xnl.luainc") -- uncomment to fix dependency order
@@ -361,13 +406,17 @@ function proto.dissector(buf, pkt, root)
 
   local desc = (opcodes[opcode] or opcode) .. " Transaction=" .. xnl_transaction().value
 
+  local result = nil
+  if (opcode >> 12) == 8 then
+    result = buf(2, 1)
+    tree:add(f_result, result)
+  end
+
   if opcode == 0x000e then
     tree:add(f_rstatus_type, buf(2, 1))
     desc = desc .. " Type=" .. buf(2, 1):uint()
   elseif opcode == 0x800e then
-    local rstatus_result = buf(2, 1):uint()
-    tree:add(f_rstatus_result, buf(2, 1))
-    if rstatus_result == 0 then
+    if result == 0 then
       tree:add(f_rstatus_type, buf(3, 1))
       tree:add(f_rstatus_status, buf(4, buf:len() - 4))
       desc = desc .. " Type=" .. buf(3, 1):uint()
@@ -387,6 +436,38 @@ function proto.dissector(buf, pkt, root)
     desc = desc .. " Op=" .. buf(2, 1):uint()
   elseif opcode == 0x8011 then
     tree:add(f_serial_value, buf(3, buf:len() - 3))
+  elseif opcode == 0x8012 then
+    tree:add(f_uuid, buf(3, 16))
+  elseif opcode == 0x002c then
+    tree:add(f_langpk_op, buf(2, 1))
+    desc = desc .. " Op=" .. buf(2, 1):uint()
+  elseif opcode == 0x802c then
+    local offset = 3
+    tree:add(f_langpk_avail, buf(offset, 4))
+    offset = offset + 4
+    local cap = buf(offset, 1)
+    offset = offset + 1
+    tree:add(f_langpk_cap, cap)
+    for i = 0, cap:uint() - 1 do
+      local len = buf(offset,1):uint()
+      local pack = tree:add(f_langpk, buf(offset, len))
+      offset = offset + 1
+      local getId = buf(offset, 16)
+      local id = getId:ustring()
+      offset = offset + 16
+      pack:add(f_langpk_id, getId, id)
+      pack:add(f_langpk_maj, buf(offset, 4))
+      offset = offset + 4
+      pack:add(f_langpk_min, buf(offset, 4))
+      offset = offset + 4
+      pack:add(f_langpk_siz, buf(offset, 4))
+      offset = offset + 4
+      local nameLen = len - 29
+      local getName = buf(offset, nameLen)
+      local name = getName:ustring()
+      offset = offset + nameLen
+      pack:add(f_langpk_name, getName, name)
+    end
   elseif opcode == 0x0037 then
     tree:add(f_cpattr_op, buf(2, 1))
     tree:add(f_cpattr, buf(3, 1))
@@ -395,10 +476,53 @@ function proto.dissector(buf, pkt, root)
   elseif opcode == 0x8037 then
     tree:add(f_cpattr_op, buf(3, 1))
     tree:add(f_cpattr, buf(4, 1))
-    local attr_len = buf(5, 1):uint()
+    local attr_len = buf(5, 1)
     tree:add(f_cpattr_len, attr_len)
-    tree:add(f_cpattr_value, buf(6, attr_len))
+    tree:add(f_cpattr_value, buf(6, attr_len:uint()))
     desc = desc .. " Op=" .. buf(3, 1):uint() .. " Attr=" .. buf(4, 1):uint()
+  elseif opcode == 0x0100 then
+    local lp = buf(2, 1)
+    local type = buf(3, 2)
+    local id = buf(5, 2)
+    tree:add(f_readish_lp, lp)
+    tree:add(f_readish_type, type)
+    tree:add(f_readish_id, id)
+    tree:add(f_readish_len, buf(7, 2))
+    tree:add(f_readish_offset, buf(9, 2))
+    desc = desc .. " LP=" .. lp:uint() .. " Type=" .. type:uint() .. " ID=" .. id:uint()
+  elseif opcode == 0x8100 then
+    local lp = buf(3, 1)
+    local type = buf(4, 2)
+    local id = buf(6, 2)
+    tree:add(f_readish_lp, lp)
+    tree:add(f_readish_type, type)
+    tree:add(f_readish_id, id)
+    local len = buf(8, 2):uint()
+    tree:add(f_readish_len, len)
+    tree:add(f_readish_offset, buf(10, 2))
+    tree:add(f_readish_itmsz, buf(12, 2))
+    tree:add(f_readish_data, buf(14, len))
+    desc = desc .. " LP=" .. lp:uint() .. " Type=" .. type:uint() .. " ID=" .. id:uint()
+  elseif opcode == 0x0104 then
+    local lp = buf(2, 1)
+    local type = buf(3, 2)
+    local num_ids = buf(5, 2)
+    tree:add(f_readish_lp, lp)
+    tree:add(f_readish_type, type)
+    tree:add(f_readish_ids, num_ids)
+    tree:add(f_readish_offset, buf(7, 2))
+    desc = desc .. " LP=" .. lp:uint() .. " Type=" .. type:uint() .. " IDs=" .. num_ids:uint()
+  elseif opcode == 0x8104 then
+    local lp = buf(3, 1)
+    local type = buf(4, 2)
+    local num_ids = buf(6, 2)
+    tree:add(f_readish_lp, lp)
+    tree:add(f_readish_type, type)
+    tree:add(f_readish_ids, num_ids)
+    tree:add(f_readish_offset, buf(8, 2))
+    tree:add(f_readish_tot_ids, buf(10, 2))
+    tree:add(f_readish_data, buf(12, num_ids:uint() * 2)) -- TODO: make array of uint16 ids
+    desc = desc .. " LP=" .. lp:uint() .. " Type=" .. type:uint() .. " IDs=" .. num_ids:uint()
   elseif opcode == 0xb400 then
     tree:add(f_devinitsts_major, buf(2, 1))
     tree:add(f_devinitsts_minor, buf(3, 1))
