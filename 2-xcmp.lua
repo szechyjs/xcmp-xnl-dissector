@@ -506,7 +506,7 @@ proto.fields = {
   f_rs_rgnid,
   f_rs_procid,
   f_netset_ip,
-  f_netsel_msk,
+  f_netset_msk,
 }
 
 -- dofile("xnl.luainc") -- uncomment to fix dependency order
@@ -682,17 +682,19 @@ function process_xcmp(buf, tree)
         tree:add(f_netset_ip, buf(14 + 8, 4))
       elseif type:uint() == 4112 then
         tree:add(f_rs_serial, buf(14 + 0, 10))
-        tree:add(f_rs_model, buf(14 + 12, 12))
-        tree:add(f_rs_majsecver, buf(14 + 24, 1))
-        tree:add(f_rs_midsecver, buf(14 + 25, 1))
-        tree:add(f_rs_minsecver, buf(14 + 26, 1))
-        tree:add(f_rs_orgprogyear, buf(14 + 30, 1))
-        tree:add(f_rs_orgprogmonth, buf(14 + 31, 1))
-        tree:add(f_rs_orgprogday, buf(14 + 32, 1))
-        tree:add(f_rs_orgproghour, buf(14 + 33, 1))
-        tree:add(f_rs_orgprogmins, buf(14 + 34, 1))
-        tree:add(f_rs_rgnid, buf(14 + 78, 1))
-        tree:add(f_rs_procid, buf(14 + 96, 8))
+        if num_bytes:uint() > 10 then
+          tree:add(f_rs_model, buf(14 + 12, 12))
+          tree:add(f_rs_majsecver, buf(14 + 24, 1))
+          tree:add(f_rs_midsecver, buf(14 + 25, 1))
+          tree:add(f_rs_minsecver, buf(14 + 26, 1))
+          tree:add(f_rs_orgprogyear, buf(14 + 30, 1))
+          tree:add(f_rs_orgprogmonth, buf(14 + 31, 1))
+          tree:add(f_rs_orgprogday, buf(14 + 32, 1))
+          tree:add(f_rs_orgproghour, buf(14 + 33, 1))
+          tree:add(f_rs_orgprogmins, buf(14 + 34, 1))
+          tree:add(f_rs_rgnid, buf(14 + 78, 1))
+          tree:add(f_rs_procid, buf(14 + 96, 8))
+        end
       end
     end
     desc = desc .. " LP=" .. lp:uint() .. " Type=" .. type:uint() .. " ID=" .. id:uint()
@@ -719,7 +721,9 @@ function process_xcmp(buf, tree)
   elseif opcode == 0x108 then
     tree:add(f_readish_lp, buf(2, 1))
   elseif opcode == 0x8300 then
-    tree:add(f_radio_key, buf(3, 32))
+    if result == 0 then
+      tree:add(f_radio_key, buf(3, 32))
+    end
   elseif opcode == 0x0301 then
     tree:add(f_radio_key, buf(2, 32))
   elseif opcode == 0xb400 then
