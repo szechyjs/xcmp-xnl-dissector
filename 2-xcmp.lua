@@ -418,8 +418,18 @@ local f_rs_orgprogmonth = ProtoField.uint8("xcmp.rs.orgprogmonth", "RS_ORGPROGMO
 local f_rs_orgprogyear = ProtoField.uint8("xcmp.rs.orgprogyear", "RS_ORGPROGYEAR", base.HEX)
 local f_rs_orgproghour = ProtoField.uint8("xcmp.rs.orgproghou", "RS_ORGPROGHOUR", base.HEX)
 local f_rs_orgprogmins = ProtoField.uint8("xcmp.rs.orgprogmins", "RS_ORGPROGMINUTES", base.HEX)
+local f_ri_lpgday = ProtoField.uint8("xcmp.ri.lpgday", "RI_LPGDAY", base.HEX)
+local f_ri_lpgmonth = ProtoField.uint8("xcmp.ri.lpgmonth", "RI_LPGMONTH", base.HEX)
+local f_ri_lpgyear = ProtoField.uint8("xcmp.ri.lpgyear", "RI_LPGYEAR", base.HEX)
+local f_ri_lpghour = ProtoField.uint8("xcmp.ri.lpghour", "RI_LPGHOUR", base.HEX)
+local f_ri_lpgmins = ProtoField.uint8("xcmp.ri.lpgmins", "RI_LPGMINUTES", base.HEX)
+local f_rs_orgmajappver = ProtoField.uint8("xcmp.rs.orgmajappver", "RS_ORGMAJAPPVERS", base.HEX)
+local f_rs_orgminappver = ProtoField.uint8("xcmp.rs.orgminappver", "RS_ORGMINAPPVERS", base.HEX)
+local f_rs_orgmajsecver = ProtoField.uint8("xcmp.rs.orgmajsecver", "RS_ORGMAJSECVERS", base.HEX)
+local f_rs_orgminsecver = ProtoField.uint8("xcmp.rs.orgminsecver", "RS_ORGMINSECVERS", base.HEX)
 local f_rs_rgnid = ProtoField.uint8("xcmp.rs.rgnid", "RS_RGNID", base.DEC)
 local f_rs_procid = ProtoField.bytes("xcmp.rs.procid", "RS_PROCID")
+local f_fd_flashid = ProtoField.bytes("xcmp.fd.flashid", "FD_FLASHID")
 local f_netset_ip = ProtoField.ipv4("xcmp.netset.ip", "NETSET_RDIPADDR")
 local f_netset_msk = ProtoField.ipv4("xcmp.netset.msk", "NETSET_RDSUBMASK")
 
@@ -503,8 +513,18 @@ proto.fields = {
   f_rs_orgprogyear,
   f_rs_orgproghour,
   f_rs_orgprogmins,
+  f_ri_lpgday,
+  f_ri_lpgmonth,
+  f_ri_lpgyear,
+  f_ri_lpghour,
+  f_ri_lpgmins,
+  f_rs_orgmajappver,
+  f_rs_orgminappver,
+  f_rs_orgmajsecver,
+  f_rs_orgminsecver,
   f_rs_rgnid,
   f_rs_procid,
+  f_fd_flashid,
   f_netset_ip,
   f_netset_msk,
 }
@@ -573,7 +593,9 @@ function process_xcmp(buf, tree)
     tree:add(f_rmodel_op, buf(2, 1))
     desc = desc .. " Op=" .. buf(2, 1):uint()
   elseif opcode == 0x8010 then
-    tree:add(f_rmodel_value, buf(3, buf:len() - 3))
+    if result == 0 then
+      tree:add(f_rmodel_value, buf(3, buf:len() - 3))
+    end
   elseif opcode == 0x0011 then
     tree:add(f_serial_op, buf(2, 1))
     if buf(2, 1):uint() == 1 then
@@ -581,11 +603,17 @@ function process_xcmp(buf, tree)
     end
     desc = desc .. " Op=" .. buf(2, 1):uint()
   elseif opcode == 0x8011 then
-    tree:add(f_serial_value, buf(3, buf:len() - 3))
+    if result == 0 then
+      tree:add(f_serial_value, buf(3, buf:len() - 3))
+    end
   elseif opcode == 0x8012 then
-    tree:add(f_uuid, buf(3, 16))
+    if result == 0 then
+      tree:add(f_uuid, buf(3, 16))
+    end
   elseif opcode == 0x801f then
-    tree:add(f_tanapa, buf(3))
+    if result == 0 then
+      tree:add(f_tanapa, buf(3))
+    end
   elseif opcode == 0x002c then
     tree:add(f_langpk_op, buf(2, 1))
     desc = desc .. " Op=" .. buf(2, 1):uint()
@@ -677,7 +705,13 @@ function process_xcmp(buf, tree)
     if num_bytes:uint() > 0 then
       tree:add(f_readish_data, buf(14, num_bytes:uint()))
 
-      if type:uint() == 114 then
+      if type:uint() == 71 then
+        tree:add(f_ri_lpgyear, buf(14 + 0, 1))
+        tree:add(f_ri_lpgmonth, buf(14 + 1, 1))
+        tree:add(f_ri_lpgday, buf(14 + 2, 1))
+        tree:add(f_ri_lpghour, buf(14 + 3, 1))
+        tree:add(f_ri_lpgmins, buf(14 + 4, 1))
+      elseif type:uint() == 114 then
         tree:add(f_netset_msk, buf(14 + 4, 4))
         tree:add(f_netset_ip, buf(14 + 8, 4))
       elseif type:uint() == 4112 then
@@ -692,8 +726,18 @@ function process_xcmp(buf, tree)
           tree:add(f_rs_orgprogday, buf(14 + 32, 1))
           tree:add(f_rs_orgproghour, buf(14 + 33, 1))
           tree:add(f_rs_orgprogmins, buf(14 + 34, 1))
+          tree:add(f_rs_orgmajsecver, buf(14 + 36, 1))
+          tree:add(f_rs_orgminsecver, buf(14 + 37, 1))
+          tree:add(f_rs_orgmajappver, buf(14 + 38, 1))
+          tree:add(f_rs_orgminappver, buf(14 + 39, 1))
           tree:add(f_rs_rgnid, buf(14 + 78, 1))
           tree:add(f_rs_procid, buf(14 + 96, 8))
+        end
+      elseif type:uint() == 4113 then
+        if num_bytes:uint() >= 44 then
+          tree:add(f_fd_flashid, buf(14 + 28, 16))
+        elseif num_bytes:uint() >= 42 then
+          tree:add(f_fd_flashid, buf(14 + 28, 14))
         end
       end
     end
