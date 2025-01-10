@@ -91,6 +91,8 @@ function proto.dissector(buf, pkt, root)
   elseif randomization == 56016 then
     -- 128xK
     data = derandomize(0, true, random_data, start_index + 128)
+  else
+    data = derandomize(0, true, random_data, start_index)
   end
 
   local dec_data = ByteArray.new(data, true):tvb("Derandomized data")
