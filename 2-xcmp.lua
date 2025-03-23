@@ -63,6 +63,7 @@ local opcodes_base = {
   [0x0407] = "SPKRCTRL",
   [0x0408] = "TXPWRLVL",
   [0x0409] = "TONECTRL",
+  -- [0x0410] = ?
   [0x040a] = "SHUTDWN",
   [0x040c] = "MON",
   [0x040d] = "CHZNSEL",
@@ -432,6 +433,8 @@ local f_rs_procid = ProtoField.bytes("xcmp.rs.procid", "RS_PROCID")
 local f_fd_flashid = ProtoField.bytes("xcmp.fd.flashid", "FD_FLASHID")
 local f_netset_ip = ProtoField.ipv4("xcmp.netset.ip", "NETSET_RDIPADDR")
 local f_netset_msk = ProtoField.ipv4("xcmp.netset.msk", "NETSET_RDSUBMASK")
+local f_sec_ip = ProtoField.ipv4("xcmp.sec.ip", "SEC_IP")
+local f_sec_port = ProtoField.uint16("xcmp.sec.port", "SEC_PORT")
 
 proto.fields = {
   f_opcode,
@@ -527,6 +530,8 @@ proto.fields = {
   f_fd_flashid,
   f_netset_ip,
   f_netset_msk,
+  f_sec_ip,
+  f_sec_port,
 }
 
 -- dofile("xnl.luainc") -- uncomment to fix dependency order
@@ -565,37 +570,35 @@ function process_xcmp(buf, tree)
   local opcode = buf(0, 2):uint()
   tree:add(f_opcode, buf(0, 2))
 
+  local desc = (opcodes[opcode] or opcode) .. " Transaction=" .. xnl_transaction().value
+
   local result = nil
   if (opcode >> 12) == 8 then
     result = buf(2, 1):uint()
     tree:add(f_result, buf(2, 1))
+    if result ~= 0 then
+      desc = desc .. " Result=" .. results[result]
+      return desc
+    end
   end
-
-  local desc = (opcodes[opcode] or opcode) .. " Transaction=" .. xnl_transaction().value
 
   if opcode == 0x000e then
     tree:add(f_rstatus_cond, buf(2, 1))
     desc = desc .. " Cond=" .. buf(2, 1):uint()
   elseif opcode == 0x800e then
-    if result == 0 then
-      tree:add(f_rstatus_cond, buf(3, 1))
-      tree:add(f_rstatus_status, buf(4, buf:len() - 4))
-      desc = desc .. " Cond=" .. buf(3, 1):uint()
-    end
+    tree:add(f_rstatus_cond, buf(3, 1))
+    tree:add(f_rstatus_status, buf(4, buf:len() - 4))
+    desc = desc .. " Cond=" .. buf(3, 1):uint()
   elseif opcode == 0x000f then
     tree:add(f_verinfo_type, buf(2, 1))
     desc = desc .. " Type=" .. buf(2, 1):uint()
   elseif opcode == 0x800f then
-    if result == 0 then
-      tree:add(f_verinfo_value, buf(3, buf:len() - 3))
-    end
+    tree:add(f_verinfo_value, buf(3, buf:len() - 3))
   elseif opcode == 0x0010 then
     tree:add(f_rmodel_op, buf(2, 1))
     desc = desc .. " Op=" .. buf(2, 1):uint()
   elseif opcode == 0x8010 then
-    if result == 0 then
-      tree:add(f_rmodel_value, buf(3, buf:len() - 3))
-    end
+    tree:add(f_rmodel_value, buf(3, buf:len() - 3))
   elseif opcode == 0x0011 then
     tree:add(f_serial_op, buf(2, 1))
     if buf(2, 1):uint() == 1 then
@@ -603,17 +606,11 @@ function process_xcmp(buf, tree)
     end
     desc = desc .. " Op=" .. buf(2, 1):uint()
   elseif opcode == 0x8011 then
-    if result == 0 then
-      tree:add(f_serial_value, buf(3, buf:len() - 3))
-    end
+    tree:add(f_serial_value, buf(3, buf:len() - 3))
   elseif opcode == 0x8012 then
-    if result == 0 then
-      tree:add(f_uuid, buf(3, 16))
-    end
+    tree:add(f_uuid, buf(3, 16))
   elseif opcode == 0x801f then
-    if result == 0 then
-      tree:add(f_tanapa, buf(3))
-    end
+    tree:add(f_tanapa, buf(3))
   elseif opcode == 0x002c then
     tree:add(f_langpk_op, buf(2, 1))
     desc = desc .. " Op=" .. buf(2, 1):uint()
@@ -681,6 +678,13 @@ function process_xcmp(buf, tree)
     desc = desc .. " Op=" .. buf(3, 1):uint() .. " Attr=" .. buf(4, 1):uint()
   elseif opcode == 0x003d then
     tree:add(f_func_op, buf(2, 1))
+  elseif opcode == 0x803d then
+    tree:add(f_func_op, buf(3, 1))
+    local len = buf(4,1):uint()
+    if len == 6 then
+      tree:add(f_sec_ip, buf(5, 4))
+      tree:add(f_sec_port, buf(9, 2))
+    end
   elseif opcode == 0x0100 then
     local lp = buf(2, 1)
     local type = buf(3, 2)
@@ -765,9 +769,7 @@ function process_xcmp(buf, tree)
   elseif opcode == 0x108 then
     tree:add(f_readish_lp, buf(2, 1))
   elseif opcode == 0x8300 then
-    if result == 0 then
-      tree:add(f_radio_key, buf(3, 32))
-    end
+    tree:add(f_radio_key, buf(3, 32))
   elseif opcode == 0x0301 then
     tree:add(f_radio_key, buf(2, 32))
   elseif opcode == 0xb400 then
